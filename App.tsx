@@ -1,13 +1,7 @@
-/**
- * Sample React Native App
- * https://github.com/facebook/react-native
- *
- * @format
- */
-
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import type {PropsWithChildren} from 'react';
 import {
+  Button,
   SafeAreaView,
   ScrollView,
   StatusBar,
@@ -16,103 +10,127 @@ import {
   useColorScheme,
   View,
 } from 'react-native';
+import axios from 'axios';
+import GetLocation from 'react-native-get-location';
+import { apiKey } from './api';
 
-import {
-  Colors,
-  DebugInstructions,
-  Header,
-  LearnMoreLinks,
-  ReloadInstructions,
-} from 'react-native/Libraries/NewAppScreen';
+import StackComp from './src/comps/stackComp';
+import DetailComp1 from './src/comps/DetailComp1';
+import ChartComp from './src/comps/chartComp';
 
-type SectionProps = PropsWithChildren<{
-  title: string;
-}>;
+function App() {
 
-function Section({children, title}: SectionProps): React.JSX.Element {
-  const isDarkMode = useColorScheme() === 'dark';
+  const [lat,setLat] = useState("");
+  const [long,setLong] = useState("");
+
+  const [temp,setTemp] = useState("");
+  const [uvIndex,setUvIndex] = useState("");
+  const [rainIntensity,setRainIntensity] = useState("");
+  const [windSpeed,setWindSpeed] = useState("");
+
+  const [forecast,setForecast] = useState([]);
+
+  const [backgroundColor, setBackgroundColor] = useState("");
+
+  useEffect(() => {
+    (
+      async () => {
+        try{
+          const res = await GetLocation.getCurrentPosition({enableHighAccuracy: true, timeout: 10000});
+              
+          setLat(res.latitude.toString());
+          setLong(res.longitude.toString());
+        }catch (err) {
+          console.log(err); 
+        }
+      }
+    )()
+  },[]);
+
+  const updateWeather = async () => {
+    try{
+      let uri = `https://api.tomorrow.io/v4/weather/realtime?location=${lat},${long}&apikey=${apiKey}`;
+      let uriforcast = `https://api.tomorrow.io/v4/weather/forecast?location=${lat},${long}&apikey=${apiKey}`;
+      
+      const resforcast = await axios.get(uriforcast);
+      const res = await axios.get(uri);
+
+      setForecast(resforcast.data.timelines.minutely.map((item) => {
+        return {
+          time: new Date(item.time).toLocaleString(undefined, {timeZone: 'Asia/Kolkata'}),
+          temperature: item.values.temperature,
+        }
+      }));
+
+/*       console.log(JSON.stringify(resforcast.data.timelines.minutely[0]));
+      console.log(JSON.stringify(resforcast.data.timelines.minutely[14]));
+      console.log(JSON.stringify(resforcast.data.timelines.minutely[29]));
+      console.log(JSON.stringify(resforcast.data.timelines.minutely[44]));
+      console.log(JSON.stringify(resforcast.data.timelines.minutely[59])); */
+      // console.log(res.data);
+      // console.log(res.data.data.values.uvIndex);
+      // console.log(res.data.data.values.rainIntensity);
+      // console.log(res.data.data.values.windSpeed);
+      setUvIndex(res.data.data.values.uvIndex);
+      setRainIntensity(res.data.data.values.rainIntensity);
+      setWindSpeed(res.data.data.values.windSpeed);
+      setTemp(res.data.data.values.temperature);
+    }catch(err) {
+      console.log(err);
+    } 
+  }
+
+  useEffect(() => {
+    updateWeather();
+  },[lat,long]);
+
+  useEffect(() => {
+    if(temp) {
+       setBackgroundColor( (parseInt(temp) < 25) ? "gray" : "#FFF1C7")
+    }
+  },[temp]);
+
   return (
-    <View style={styles.sectionContainer}>
-      <Text
-        style={[
-          styles.sectionTitle,
-          {
-            color: isDarkMode ? Colors.white : Colors.black,
-          },
-        ]}>
-        {title}
-      </Text>
-      <Text
-        style={[
-          styles.sectionDescription,
-          {
-            color: isDarkMode ? Colors.light : Colors.dark,
-          },
-        ]}>
-        {children}
-      </Text>
-    </View>
-  );
-}
-
-function App(): React.JSX.Element {
-  const isDarkMode = useColorScheme() === 'dark';
-
-  const backgroundStyle = {
-    backgroundColor: isDarkMode ? Colors.darker : Colors.lighter,
-  };
-
-  return (
-    <SafeAreaView style={backgroundStyle}>
-      <StatusBar
-        barStyle={isDarkMode ? 'light-content' : 'dark-content'}
-        backgroundColor={backgroundStyle.backgroundColor}
-      />
-      <ScrollView
-        contentInsetAdjustmentBehavior="automatic"
-        style={backgroundStyle}>
-        <Header />
-        <View
-          style={{
-            backgroundColor: isDarkMode ? Colors.black : Colors.white,
-          }}>
-          <Section title="Step One">
-            Edit <Text style={styles.highlight}>App.tsx</Text> to change this
-            screen and then come back to see your edits.
-          </Section>
-          <Section title="See Your Changes">
-            <ReloadInstructions />
-          </Section>
-          <Section title="Debug">
-            <DebugInstructions />
-          </Section>
-          <Section title="Learn More">
-            Read the docs to discover what to do next:
-          </Section>
-          <LearnMoreLinks />
-        </View>
-      </ScrollView>
+    <SafeAreaView style={{
+      flex: 1,
+      backgroundColor: backgroundColor,
+    }}>
+      {
+         (!lat && !long) ? (
+      <View>
+        <Text>Grant access to Location</Text>
+        <Button
+        title='Refresh'
+        onPress={updateWeather}
+        ></Button>
+      </View>
+        )
+        :
+        (
+          <View style={{flex: 3}}>
+            <View style={{flex: 6,backgroundColor: backgroundColor}}>
+            <StackComp
+            backgroundCol={backgroundColor}
+            temperature={temp}
+            ></StackComp>          
+            </View>
+            <View style={{flex: 1,backgroundColor: backgroundColor}}>
+            <DetailComp1
+            uvIndex={uvIndex}
+            rainIntensity={rainIntensity}
+            windSpeed={windSpeed}
+            ></DetailComp1>
+            </View>
+            <View style={{flex: 3,backgroundColor: backgroundColor}}>
+            <ChartComp
+            forecast={forecast}
+            ></ChartComp>
+            </View>
+          </View>
+        ) 
+      }
     </SafeAreaView>
   );
 }
-
-const styles = StyleSheet.create({
-  sectionContainer: {
-    marginTop: 32,
-    paddingHorizontal: 24,
-  },
-  sectionTitle: {
-    fontSize: 24,
-    fontWeight: '600',
-  },
-  sectionDescription: {
-    marginTop: 8,
-    fontSize: 18,
-    fontWeight: '400',
-  },
-  highlight: {
-    fontWeight: '700',
-  },
-});
 
 export default App;
